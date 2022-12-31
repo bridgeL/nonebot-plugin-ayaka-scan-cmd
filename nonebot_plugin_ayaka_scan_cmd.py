@@ -1,7 +1,7 @@
 '''扫描当前所有matcher，总结命令'''
 from itertools import chain
 from nonebot.matcher import matchers, Matcher
-from nonebot.rule import CommandRule, RegexRule, EndswithRule, KeywordsRule, FullmatchRule, StartswithRule, ShellCommandRule
+from nonebot.rule import CommandRule, RegexRule, EndswithRule, KeywordsRule, FullmatchRule, StartswithRule, ShellCommandRule, ToMeRule
 from ayaka import AyakaBox
 
 box = AyakaBox("命令探查")
@@ -43,8 +43,10 @@ def get_info(m: Matcher):
         elif isinstance(call, FullmatchRule):
             info = "[fullmatch] "
             info += repr(call.msg)
+        elif isinstance(call, ToMeRule):
+            info = "[tome] @bot"
         else:
-            info = "[other] 未知指令"
+            info = "[other] 未知规则"
         checker_names.append(info)
     checker_names.sort()
     info = f"[模块名称] {m.module_name}"
@@ -58,7 +60,7 @@ def get_info(m: Matcher):
 @box.on_cmd(cmds=["scan-all"])
 async def scan_all():
     ms = list(chain(*matchers.values()))
-    items = [get_info(m) for m in ms]
+    items = list(set(get_info(m) for m in ms))
     items.sort()
     await box.send_many(items)
 
@@ -80,6 +82,7 @@ async def scan_list():
 async def scan_search():
     ms = list(chain(*matchers.values()))
     items = [get_info(m) for m in ms]
+    items = list(set(get_info(m) for m in ms))
     key = str(box.arg)
     items = [item for item in items if key in item]
     items.sort()
