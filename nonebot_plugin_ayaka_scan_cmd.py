@@ -4,11 +4,15 @@ from nonebot.matcher import matchers, Matcher
 from nonebot.rule import CommandRule, RegexRule, EndswithRule, KeywordsRule, FullmatchRule, StartswithRule, ShellCommandRule
 from ayaka import AyakaBox
 
-box = AyakaBox("命令探测")
+box = AyakaBox("命令探查")
 
 
 def get_info(m: Matcher):
     handle_names = [h.call.__name__ for h in m.handlers]
+    handle_locs = list(set(h.call.__module__ for h in m.handlers))
+    handle_docs = [h.call.__doc__ for h in m.handlers if h.call.__doc__]
+    if not handle_docs:
+        handle_docs = ["无"]
     checker_names = []
     for checker in m.rule.checkers:
         call = checker.call
@@ -40,13 +44,14 @@ def get_info(m: Matcher):
             info = "[fullmatch] "
             info += repr(call.msg)
         else:
-            info = "[other] "
-            info += getattr(call, "__name__", "未知checker")
+            info = "[other] 未知指令"
         checker_names.append(info)
     checker_names.sort()
-    info = f"[模块名称] {m.module_name}\n"
-    info += "[回调名称] " + "\n".join(handle_names) + "\n"
-    info += "[可用命令] " + "\n".join(checker_names)
+    info = f"[模块名称] {m.module_name}"
+    info += "\n[回调位置] " + "/".join(handle_locs)
+    info += "\n[回调名称] " + "/".join(handle_names)
+    info += "\n[可用命令]\n  " + "\n  ".join(checker_names)
+    info += "\n[回调注释] " + "\n".join(handle_docs)
     return info
 
 
@@ -61,7 +66,12 @@ async def scan_all():
 @box.on_cmd(cmds=["scan-list"])
 async def scan_list():
     ms = list(chain(*matchers.values()))
-    names = list(set(m.module_name for m in ms))
+    names = set()
+    for m in ms:
+        names.add(m.module_name)
+        for h in m.handlers:
+            names.add(h.call.__module__)
+    names = list(names)
     names.sort()
     await box.send("\n".join(names))
 
