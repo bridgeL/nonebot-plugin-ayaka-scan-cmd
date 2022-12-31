@@ -1,0 +1,5 @@
+__pycache__
+/dist
+/data
+/error.log
+*.db

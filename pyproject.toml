@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "nonebot_plugin_ayaka_scan_cmd"
+version = "0.0.1"
+description = "扫描当前所有matcher，总结命令"
+authors = ["Su <wxlxy316@163.com>"]
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/bridgeL/nonebot-plugin-ayaka-scan-cmd"
+packages = [
+    { include = "nonebot_plugin_ayaka_scan_cmd.py", from = "." },
+]
+
+
+[tool.poetry.dependencies]
+python = "^3.10"
+nonebot-plugin-ayaka = "^1.0.0b0"
+
+
+
+[tool.nonebot]
+plugins = []
+plugin_dirs = []
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
