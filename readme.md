@@ -1,169 +1,37 @@
 <div align="center">
 
-# 命令探查 0.0.3
+# 命令探查 0.0.4
+
+猜测未知插件的使用方法
 
 </div>
 
-缓解下载了新插件却不会使用的焦虑
+## 使用方法
 
-使用`scan-all`指令，让bot展示一份简陋甚至错误百出的帮助菜单
+| 命令     | 效果       |
+| -------- | ---------- |
+| 命令探查 | 启动本插件 |
+| 退出     | 关闭本插件 |
 
-使用`scan-search <name>`指令，让bot展示`<name>`相关的内容
+启动本插件后，发送命令
 
-使用`scan-list`指令，让bot展示所有模块名
+| 命令                 | 效果                       |
+| -------------------- | -------------------------- |
+| 列表                 | 查看所有已安装的插件的名称 |
+| 查看 `编号`/`插件名` | 查看指定插件的命令         |
+| 商店 `编号`/`插件名` | 在nb商店中搜索插件的信息   |
 
-## 效果示例
+## 使用效果 
 
-以安装了`nonebot_plugin_game_collection`为例
-
-`scan-search 赛马`
-
-```
-Ayaka Bot(123) 说：
-[模块名称] nonebot_plugin_game_collection
-[回调位置] nonebot_plugin_game_collection
-[回调名称] _
-[可用命令]
-  [cmds] '创建赛马'/'赛马创建'
-[回调注释] 无
-
-Ayaka Bot(123) 说：
-[模块名称] nonebot_plugin_game_collection
-[回调位置] nonebot_plugin_game_collection
-[回调名称] _
-[可用命令]
-  [cmds] '加入赛马'/'赛马加入'
-[回调注释] 无
-
-Ayaka Bot(123) 说：
-[模块名称] nonebot_plugin_game_collection
-[回调位置] nonebot_plugin_game_collection
-[回调名称] _
-[可用命令]
-  [cmds] '清空赛马'/'赛马清空'
-[回调注释] 无
-
-Ayaka Bot(123) 说：
-[模块名称] nonebot_plugin_game_collection
-[回调位置] nonebot_plugin_game_collection
-[回调名称] _
-[可用命令]
-  [cmds] '赛马事件重载'
-[回调注释] 无
-
-Ayaka Bot(123) 说：
-[模块名称] nonebot_plugin_game_collection
-[回调位置] nonebot_plugin_game_collection
-[回调名称] _
-[可用命令]
-  [cmds] '赛马开始'/'开始赛马'
-[回调注释] 无
-
-Ayaka Bot(123) 说：
-[模块名称] nonebot_plugin_game_collection
-[回调位置] nonebot_plugin_game_collection
-[回调名称] _
-[可用命令]
-  [cmds] '赛马暂停'/'暂停赛马'
-[回调注释] 无
-
-Ayaka Bot(123) 说：
-[模块名称] nonebot_plugin_game_collection
-[回调位置] nonebot_plugin_game_collection
-[回调名称] _
-[可用命令]
-  [cmds] '赛马重置'/'重置赛马'
-[回调注释] 无
-```
-
-以安装了`nonebot_plugin_ayaka_games`为例
-
-`scan-search suspect`
-
-```
-Ayaka Bot(123) 说：
-[模块名称] ayaka.box
-[回调位置] ayaka_games.plugins.who_is_suspect
-[回调名称] box_entrance
-[可用命令]
-  [cmds] '谁是卧底'
-  [other] 未知指令
-[回调注释] 打开应用
-
-Ayaka Bot(123) 说：
-[模块名称] ayaka.box
-[回调位置] ayaka_games.plugins.who_is_suspect
-[回调名称] exit_play
-[可用命令]
-  [cmds] 'exit'/'退出'
-  [other] 未知指令
-[回调注释] 无
-
-Ayaka Bot(123) 说：
-[模块名称] ayaka.box
-[回调位置] ayaka_games.plugins.who_is_suspect
-[回调名称] exit_room
-[可用命令]
-  [cmds] 'exit'/'退出'
-  [other] 未知指令
-[回调注释] 关闭游戏
-
-Ayaka Bot(123) 说：
-[模块名称] ayaka.box
-[回调位置] ayaka_games.plugins.who_is_suspect
-[回调名称] join
-[可用命令]
-  [cmds] 'join'/'加入'
-  [other] 未知指令
-[回调注释] 加入房间
-
-Ayaka Bot(123) 说：
-[模块名称] ayaka.box
-[回调位置] ayaka_games.plugins.who_is_suspect
-[回调名称] leave
-[可用命令]
-  [cmds] '离开'/'leave'
-  [other] 未知指令
-[回调注释] 离开房间
-
-Ayaka Bot(123) 说：
-[模块名称] ayaka.box
-[回调位置] ayaka_games.plugins.who_is_suspect
-[回调名称] play_info
-[可用命令]
-  [cmds] '信息'/'info'
-  [other] 未知指令
-[回调注释] 展示投票情况
-
-Ayaka Bot(123) 说：
-[模块名称] ayaka.box
-[回调位置] ayaka_games.plugins.who_is_suspect
-[回调名称] room_info
-[可用命令]
-  [cmds] '信息'/'info'
-  [other] 未知指令
-[回调注释] 展示房间内成员列表
-
-Ayaka Bot(123) 说：
-[模块名称] ayaka.box
-[回调位置] ayaka_games.plugins.who_is_suspect
-[回调名称] start
-[可用命令]
-  [cmds] 'start'/'begin'/'开始'
-  [other] 未知指令
-[回调注释] 开始游戏
-
-Ayaka Bot(123) 说：
-[模块名称] ayaka.box
-[回调位置] ayaka_games.plugins.who_is_suspect
-[回调名称] vote
-[可用命令]
-  [cmds] 'vote'/'投票'
-  [other] 未知指令
-[回调注释] 请at你要投票的对象，一旦投票无法更改
-```
-
+![图片](pics/0.png)
+![图片](pics/1.png)
+![图片](pics/2.png)
+![图片](pics/3.png)
+![图片](pics/4.png)
+![图片](pics/5.png)
 
 ## 实现原理
 
 遍历`nonebot.matcher.matchers`对象，分析所有`Matcher`
+
+下载`https://raw.githubusercontent.com/nonebot/nonebot2/master/website/static/plugins.json`，获取插件信息

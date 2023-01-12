@@ -1,89 +1,257 @@
 '''扫描当前所有matcher，总结命令'''
+import json
+from random import sample
+import re
 from itertools import chain
 from nonebot.matcher import matchers, Matcher
 from nonebot.rule import CommandRule, RegexRule, EndswithRule, KeywordsRule, FullmatchRule, StartswithRule, ShellCommandRule, ToMeRule
-from ayaka import AyakaBox
+from pydantic import BaseModel
+from ayaka import AyakaCat, resource_download, bridge
 
-box = AyakaBox("命令探查")
-
-
-def get_info(m: Matcher):
-    handle_names = [h.call.__name__ for h in m.handlers]
-    handle_locs = list(set(h.call.__module__ for h in m.handlers))
-    handle_docs = [h.call.__doc__ for h in m.handlers if h.call.__doc__]
-    if not handle_docs:
-        handle_docs = ["无"]
-    checker_names = []
-    for checker in m.rule.checkers:
-        call = checker.call
-        if isinstance(call, CommandRule):
-            info = "[cmds] "
-            info += "/".join(
-                repr(c)
-                for cmds in call.cmds for c in cmds
-            )
-        elif isinstance(call, ShellCommandRule):
-            info = "[shellcmd] "
-            info += "/".join(
-                repr(c)
-                for cmds in call.cmds for c in cmds
-            )
-        elif isinstance(call, KeywordsRule):
-            info = "[keywords] "
-            info += "/".join(repr(c) for c in call.keywords)
-        elif isinstance(call, RegexRule):
-            info = "[regex] "
-            info += repr(call.regex)
-        elif isinstance(call, StartswithRule):
-            info = "[startwith] "
-            info += repr(call.msg)
-        elif isinstance(call, EndswithRule):
-            info = "[endwith] "
-            info += repr(call.msg)
-        elif isinstance(call, FullmatchRule):
-            info = "[fullmatch] "
-            info += repr(call.msg)
-        elif isinstance(call, ToMeRule):
-            info = "[tome] @bot"
-        else:
-            info = "[other] 未知规则"
-        checker_names.append(info)
-    checker_names.sort()
-    info = f"[模块名称] {m.module_name}"
-    info += "\n[回调位置] " + "/".join(handle_locs)
-    info += "\n[回调名称] " + "/".join(handle_names)
-    info += "\n[可用命令]\n  " + "\n  ".join(checker_names)
-    info += "\n[回调注释] " + "\n".join(handle_docs)
-    return info
+cat = AyakaCat("命令探查")
+pt = re.compile(r"nonebot[_-]plugin[_-]")
+plugins: list["PluginInfo"] = []
+nb_shop_data: list["NbShopPluginInfo"] = []
 
 
-@box.on_cmd(cmds=["scan-all"])
-async def scan_all():
+@bridge.on_startup
+async def download():
+    nb_shop_data.clear()
+    try:
+        data = await resource_download("https://raw.githubusercontent.com/nonebot/nonebot2/master/website/static/plugins.json")
+    except:
+        pass
+    else:
+        data = json.loads(data)
+        for d in data:
+            nb_shop_data.append(NbShopPluginInfo(**d))
+
+
+class NbShopPluginInfo(BaseModel):
+    module_name: str
+    project_link: str
+    name: str
+    desc: str
+    author: str
+    homepage: str
+
+    def relative(self, name: str):
+        return name in self.module_name or name in self.desc
+
+    def get_info(self):
+        items = [
+            f"名称：{self.name}",
+            f"描述：{self.desc}",
+            f"作者：{self.author}",
+            f"包名：{self.module_name}",
+            f"主页：{self.homepage}",
+        ]
+        return "\n".join(items)
+
+
+class RuleInfo(BaseModel):
+    type: str = ""
+    args: list[str] = []
+
+    def get_info(self):
+        if self.args:
+            info = " / ".join(self.args)
+            return f"[{self.type}]{info}"
+        return self.type
+
+
+class HandlerInfo(BaseModel):
+    module: str = ""
+    name: str = ""
+    doc: str = ""
+
+    def is_useful(self):
+        info = self.name + self.doc
+        info = info.replace("_", "").strip()
+        return info
+
+    def get_info(self):
+        info = f"[{self.module}].{self.name}"
+        if self.doc:
+            info += f"({self.doc})"
+        return info
+
+
+class MatcherInfo(BaseModel):
+    rules: list[RuleInfo] = []
+    handlers: list[HandlerInfo] = []
+
+    def get_info(self):
+        items = []
+        if self.rules:
+            if len(self.rules) == 1:
+                items.append(f"规则：{self.rules[0].get_info()}")
+            else:
+                items.append("规则：")
+                for r in self.rules:
+                    items.append(r.get_info())
+
+        handlers = [h for h in self.handlers if h.is_useful()]
+        if handlers:
+            if len(handlers) == 1:
+                items.append(f"回调：{handlers[0].get_info()}")
+            else:
+                items.append("回调：")
+                for h in handlers:
+                    items.append(h.get_info())
+
+        return "\n".join(items)
+
+
+class PluginInfo(BaseModel):
+    name: str = ""
+    matchers: list[MatcherInfo] = []
+
+    def get_infos(self):
+        info = f"插件名：{self.name}\nmatcher数量：{len(self.matchers)}\n以下仅显示可分析的信息"
+        items = [info]
+        for m in self.matchers:
+            item = m.get_info()
+            if item not in items:
+                items.append(item)
+        return items
+
+
+def get_plugin(plugin_name: str, auto_create: bool = True):
+    for plugin in plugins:
+        if plugin.name == plugin_name:
+            return plugin
+    if not auto_create:
+        return
+    plugin = PluginInfo(name=plugin_name)
+    plugins.append(plugin)
+    return plugin
+
+
+def scan_all():
+    plugins.clear()
     ms = list(chain(*matchers.values()))
-    items = list(set(get_info(m) for m in ms))
-    items.sort()
-    await box.send_many(items)
-
-
-@box.on_cmd(cmds=["scan-list"])
-async def scan_list():
-    ms = list(chain(*matchers.values()))
-    names = set()
     for m in ms:
-        names.add(m.module_name)
-        for h in m.handlers:
-            names.add(h.call.__module__)
-    names = list(names)
-    names.sort()
-    await box.send("\n".join(names))
+        name = pt.sub("", m.module_name)
+        plugin = get_plugin(name)
+        plugin.matchers.append(scan_matcher(m))
 
 
-@box.on_cmd(cmds=["scan-search"])
-async def scan_search():
-    ms = list(chain(*matchers.values()))
-    items = [get_info(m) for m in ms]
-    items = list(set(get_info(m) for m in ms))
-    key = str(box.arg)
-    items = [item for item in items if key in item]
-    items.sort()
-    await box.send_many(items)
+def scan_matcher(matcher: Matcher):
+    m = MatcherInfo()
+    for dependent in matcher.handlers:
+        m.handlers.append(scan_handler(dependent.call))
+
+    for dependent in matcher.rule.checkers:
+        m.rules.append(scan_checker(dependent.call))
+    return m
+
+
+def scan_handler(func):
+    doc = ""
+    if func.__doc__:
+        doc = func.__doc__
+    return HandlerInfo(
+        module=pt.sub("", func.__module__),
+        name=func.__name__,
+        doc=doc,
+    )
+
+
+def scan_checker(func):
+    if isinstance(func, (CommandRule, ShellCommandRule)):
+        return RuleInfo(
+            type="命令",
+            args=list(chain(*func.cmds))
+        )
+
+    if isinstance(func, KeywordsRule):
+        return RuleInfo(
+            type="关键词",
+            args=func.keywords
+        )
+
+    if isinstance(func, RegexRule):
+        return RuleInfo(
+            type="正则",
+            args=[func.regex]
+        )
+
+    if isinstance(func, ToMeRule):
+        return RuleInfo(type="@机器人")
+
+    if isinstance(func, (StartswithRule, EndswithRule, FullmatchRule)):
+        return RuleInfo(
+            type=func.__class__.__name__,
+            args=[func.msg]
+        )
+
+    return RuleInfo(type="未知规则")
+
+
+cat.set_rest_cmds(cmds={"exit", "退出"})
+
+
+@cat.on_cmd(cmds="命令探查")
+async def scan_handle():
+    '''唤醒猫猫，并扫描全部matchers'''
+    await cat.wakeup()
+    await cat.send_help()
+    scan_all()
+    await cat.send("已完成扫描")
+
+
+@cat.on_cmd(cmds="列表", states="*")
+async def show_all_plugin_names():
+    '''展示插件列表'''
+    info = "\n".join(f"[{i}] {p.name}" for i, p in enumerate(plugins))
+    await cat.send(info)
+
+
+@cat.on_cmd(cmds="查看", states="*")
+async def show_plugin_info():
+    '''<编号>/<插件名> 展示插件信息'''
+    if cat.params.nums:
+        n = cat.params.nums[0]
+        if n < 0 or n >= len(plugins):
+            return await cat.send("超出范围了呢")
+        plugin = plugins[n]
+    else:
+        plugin = get_plugin(cat.params.arg, False)
+        if not plugin:
+            return await cat.send("没有这个插件呢")
+
+    await cat.send_many(plugin.get_infos())
+
+
+@cat.on_cmd(cmds="商店", states="*")
+async def show_plugin_info_in_shop():
+    '''<编号>/<插件名> 在商店中查找该插件'''
+    if not nb_shop_data:
+        await cat.send("没有获取到商店数据，尝试下载...")
+        await download()
+        await cat.send("下载成功，请重新发送指令")
+        return
+
+    if cat.params.nums:
+        n = cat.params.nums[0]
+        if n < 0 or n >= len(plugins):
+            return await cat.send("超出范围了呢")
+        name = plugins[n].name
+    else:
+        name = cat.params.arg
+
+    ps = [p for p in nb_shop_data if p.relative(name)]
+    if not ps:
+        return await cat.send("商店中没有这个插件呢")
+
+    items = [
+        f"查找插件 {name}",
+        f"共找到{len(ps)}个结果"
+    ]
+    if len(ps) > 30:
+        ps = sample(ps, 30)
+        items.append("结果太多，仅展示随机抽取的30个")
+
+    items.extend(p.get_info() for p in ps)
+    await cat.send_many(items)
