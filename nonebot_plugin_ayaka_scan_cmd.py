@@ -2,8 +2,8 @@
 import re
 import json
 from loguru import logger
-from asyncio import sleep
 from random import sample
+from asyncio import sleep
 from itertools import chain
 from nonebot.matcher import matchers, Matcher
 from nonebot.rule import CommandRule, RegexRule, EndswithRule, KeywordsRule, FullmatchRule, StartswithRule, ShellCommandRule, ToMeRule
@@ -12,7 +12,8 @@ from ayaka import AyakaCat, resource_download, bridge
 
 cat = AyakaCat("命令探查")
 pt = re.compile(r"nonebot[_-]plugin[_-]")
-pt2 = re.compile(r"^plugins(_test)?\.")
+pt2 = re.compile(r"^(plugins(_test)?|src)\.")
+
 plugins: list["PluginInfo"] = []
 nb_shop_data: list["NbShopPluginInfo"] = []
 
