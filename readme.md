@@ -20,6 +20,9 @@
 | 列表                 | 查看所有已安装的插件的名称 |
 | 查看 `编号`/`插件名` | 查看指定插件的命令         |
 | 商店 `编号`/`插件名` | 在nb商店中搜索插件的信息   |
+| 禁用 `编号`/`插件名` | 禁用那些命令冲突的插件     |
+| 启用 `编号`/`插件名` | 启用被禁用的插件           |
+
 
 ## 使用效果 
 
@@ -35,3 +38,5 @@
 遍历`nonebot.matcher.matchers`对象，分析所有`Matcher`
 
 下载`https://raw.githubusercontent.com/nonebot/nonebot2/master/website/static/plugins.json`，获取插件信息
+
+注入自己的控制管理rule

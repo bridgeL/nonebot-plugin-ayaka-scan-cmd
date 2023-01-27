@@ -6,9 +6,11 @@ from random import sample
 from asyncio import sleep
 from itertools import chain
 from nonebot.matcher import matchers, Matcher
-from nonebot.rule import CommandRule, RegexRule, EndswithRule, KeywordsRule, FullmatchRule, StartswithRule, ShellCommandRule, ToMeRule
+from nonebot.rule import CommandRule, RegexRule, EndswithRule, KeywordsRule, FullmatchRule, StartswithRule, ShellCommandRule, ToMeRule, Rule
+from nonebot.exception import SkippedException
+from nonebot.adapters.onebot.v11 import GroupMessageEvent
 from pydantic import BaseModel
-from ayaka import AyakaCat, resource_download, bridge
+from ayaka import AyakaCat, resource_download, bridge, AyakaConfig
 
 cat = AyakaCat("命令探查")
 pt = re.compile(r"nonebot[_-]plugin[_-]")
@@ -27,6 +29,7 @@ def short_name(name: str):
 
 @bridge.on_startup
 async def download():
+    await scan_all()
     nb_shop_data.clear()
     logger.info("nb商店数据更新中...")
     try:
@@ -116,6 +119,33 @@ class MatcherInfo(BaseModel):
         return "\n".join(items)
 
 
+class Config(AyakaConfig):
+    __config_name__ = cat.name
+    forbid_dict: dict[str, list[str]] = {}
+
+    def forbid(self, plugin_name: str, group_id: str):
+        self.forbid_dict.setdefault(plugin_name, [])
+        if group_id not in self.forbid_dict[plugin_name]:
+            self.forbid_dict[plugin_name].append(group_id)
+            self.save()
+
+    def permit(self, plugin_name: str, group_id: str):
+        if plugin_name not in self.forbid_dict:
+            return
+        if group_id not in self.forbid_dict[plugin_name]:
+            return
+        self.forbid_dict[plugin_name].remove(group_id)
+        if not self.forbid_dict[plugin_name]:
+            self.forbid_dict.pop(plugin_name)
+        self.save()
+
+    def check(self, plugin_name: str, group_id: str):
+        return group_id not in self.forbid_dict.get(plugin_name, [])
+
+
+config = Config()
+
+
 class PluginInfo(BaseModel):
     name: str = ""
     matchers: list[MatcherInfo] = []
@@ -142,6 +172,15 @@ class PluginInfo(BaseModel):
 
         return items
 
+    def check(self, event: GroupMessageEvent):
+        return config.check(self.name, str(event.group_id))
+
+    def forbid(self, group_id: str):
+        config.forbid(self.name, group_id)
+
+    def permit(self, group_id: str):
+        config.permit(self.name, group_id)
+
 
 def get_plugin(plugin_name: str, auto_create: bool = True):
     for plugin in plugins:
@@ -164,6 +203,11 @@ async def scan_all():
             meta = getattr(m.module, "__plugin_meta__", None)
             if meta:
                 plugin.meta = vars(meta)
+
+        if not hasattr(m, "add_scan_cmd_ctrl"):
+            m.add_scan_cmd_ctrl = 1
+            m.rule.checkers.add(next(iter(Rule(plugin.check).checkers)))
+
         plugin.matchers.append(scan_matcher(m))
         await sleep(0)
     plugins.sort(key=lambda x: x.name)
@@ -231,6 +275,46 @@ async def scan_handle():
     await cat.send_help()
     await scan_all()
     await show_all_plugin_names()
+
+
+@cat.on_cmd(cmds="禁用", states="*")
+async def forbid():
+    '''<编号>/<插件名> 禁用那些命令冲突的插件'''
+    if not cat.arg:
+        return await cat.send("没有输入参数")
+
+    if cat.nums:
+        n = cat.nums[0]
+        if n < 0 or n >= len(plugins):
+            return await cat.send("超出范围了呢")
+        plugin = plugins[n]
+    else:
+        plugin = get_plugin(cat.arg, False)
+        if not plugin:
+            return await cat.send("没有这个插件呢")
+
+    plugin.forbid(cat.group.id)
+    await cat.send(f"已禁用 {plugin.name}")
+
+
+@cat.on_cmd(cmds="启用", states="*")
+async def forbid():
+    '''<编号>/<插件名> 启用被禁用的插件'''
+    if not cat.arg:
+        return await cat.send("没有输入参数")
+
+    if cat.nums:
+        n = cat.nums[0]
+        if n < 0 or n >= len(plugins):
+            return await cat.send("超出范围了呢")
+        plugin = plugins[n]
+    else:
+        plugin = get_plugin(cat.arg, False)
+        if not plugin:
+            return await cat.send("没有这个插件呢")
+
+    plugin.permit(cat.group.id)
+    await cat.send(f"已启用 {plugin.name}")
 
 
 @cat.on_cmd(cmds="列表", states="*")
