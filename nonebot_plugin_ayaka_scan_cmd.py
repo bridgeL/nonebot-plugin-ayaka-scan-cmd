@@ -7,10 +7,9 @@ from asyncio import sleep
 from itertools import chain
 from nonebot.matcher import matchers, Matcher
 from nonebot.rule import CommandRule, RegexRule, EndswithRule, KeywordsRule, FullmatchRule, StartswithRule, ShellCommandRule, ToMeRule, Rule
-from nonebot.exception import SkippedException
 from nonebot.adapters.onebot.v11 import GroupMessageEvent
 from pydantic import BaseModel
-from ayaka import AyakaCat, resource_download, bridge, AyakaConfig
+from ayaka import AyakaCat, resource_download, AyakaConfig, get_adapter
 
 cat = AyakaCat("命令探查")
 pt = re.compile(r"nonebot[_-]plugin[_-]")
@@ -27,7 +26,6 @@ def short_name(name: str):
     return name
 
 
-@bridge.on_startup
 async def download():
     await scan_all()
     nb_shop_data.clear()
@@ -41,6 +39,8 @@ async def download():
         for d in data:
             nb_shop_data.append(NbShopPluginInfo(**d))
         logger.info("nb商店数据更新完毕")
+
+get_adapter().on_startup(download)
 
 
 class NbShopPluginInfo(BaseModel):
@@ -140,7 +140,10 @@ class Config(AyakaConfig):
         self.save()
 
     def check(self, plugin_name: str, group_id: str):
-        return group_id not in self.forbid_dict.get(plugin_name, [])
+        flag = group_id not in self.forbid_dict.get(plugin_name, [])
+        if not flag:
+            logger.info(f"猫猫{plugin_name}已在群{group_id}中被屏蔽")
+        return flag
 
 
 config = Config()
@@ -198,6 +201,9 @@ async def scan_all():
     ms = list(chain(*matchers.values()))
     for m in ms:
         name = short_name(m.module_name)
+        if name == "ayaka":
+            continue
+
         plugin = get_plugin(name)
         if not plugin.meta:
             meta = getattr(m.module, "__plugin_meta__", None)
@@ -206,7 +212,8 @@ async def scan_all():
 
         if not hasattr(m, "add_scan_cmd_ctrl"):
             m.add_scan_cmd_ctrl = 1
-            m.rule.checkers.add(next(iter(Rule(plugin.check).checkers)))
+            checker = list(Rule(plugin.check).checkers)[0]
+            m.rule.checkers.add(checker)
 
         plugin.matchers.append(scan_matcher(m))
         await sleep(0)
@@ -265,9 +272,6 @@ def scan_checker(func):
     return RuleInfo(type="[未知]")
 
 
-cat.set_rest_cmds(cmds={"exit", "退出"})
-
-
 @cat.on_cmd(cmds="命令探查")
 async def scan_handle():
     '''唤醒猫猫，并扫描全部matchers'''
@@ -275,6 +279,8 @@ async def scan_handle():
     await cat.send_help()
     await scan_all()
     await show_all_plugin_names()
+
+cat.set_rest_cmds(cmds={"exit", "退出"})
 
 
 @cat.on_cmd(cmds="禁用", states="*")
@@ -320,6 +326,9 @@ async def forbid():
 @cat.on_cmd(cmds="列表", states="*")
 async def show_all_plugin_names():
     '''展示插件列表'''
+    if not plugins:
+        return await cat.send("没有扫描到其他插件")
+
     info = "\n".join(f"[{i}] {p.name}" for i, p in enumerate(plugins))
     await cat.send(info)
 
