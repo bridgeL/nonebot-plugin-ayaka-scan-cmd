@@ -140,10 +140,7 @@ class Config(AyakaConfig):
         self.save()
 
     def check(self, plugin_name: str, group_id: str):
-        flag = group_id not in self.forbid_dict.get(plugin_name, [])
-        if not flag:
-            logger.info(f"猫猫{plugin_name}已在群{group_id}中被屏蔽")
-        return flag
+        return group_id not in self.forbid_dict.get(plugin_name, [])
 
 
 config = Config()
@@ -266,7 +263,7 @@ def scan_checker(func):
     if isinstance(func, (StartswithRule, EndswithRule, FullmatchRule)):
         return RuleInfo(
             type=func.__class__.__name__,
-            args=[func.msg]
+            args=list(func.msg)
         )
 
     return RuleInfo(type="[未知]")
