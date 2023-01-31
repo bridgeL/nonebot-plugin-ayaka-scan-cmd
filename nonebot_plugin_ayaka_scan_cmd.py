@@ -104,8 +104,11 @@ class MatcherInfo(BaseModel):
                 items.append(f"规则：{self.rules[0].get_info()}")
             else:
                 items.append("多规则：")
+                _items = []
                 for r in self.rules:
-                    items.append("  " + r.get_info())
+                    _items.append("  " + r.get_info())
+                _items.sort()
+                items.extend(_items)
 
         handlers = [h for h in self.handlers if h.is_useful()]
         if handlers:
@@ -113,8 +116,11 @@ class MatcherInfo(BaseModel):
                 items.append(f"回调：{handlers[0].get_info()}")
             else:
                 items.append("多回调：")
+                _items = []
                 for h in handlers:
-                    items.append("  " + h.get_info())
+                    _items.append("  " + h.get_info())
+                _items.sort()
+                items.extend(_items)
 
         return "\n".join(items)
 
@@ -172,7 +178,7 @@ class PluginInfo(BaseModel):
 
         return items
 
-    def check(self, event: GroupMessageEvent):
+    def ayaka_scan_check(self, event: GroupMessageEvent):
         return config.check(self.name, str(event.group_id))
 
     def forbid(self, group_id: str):
@@ -209,7 +215,7 @@ async def scan_all():
 
         if not hasattr(m, "add_scan_cmd_ctrl"):
             m.add_scan_cmd_ctrl = 1
-            checker = list(Rule(plugin.check).checkers)[0]
+            checker = list(Rule(plugin.ayaka_scan_check).checkers)[0]
             m.rule.checkers.add(checker)
 
         plugin.matchers.append(scan_matcher(m))
@@ -223,7 +229,9 @@ def scan_matcher(matcher: Matcher):
         m.handlers.append(scan_handler(dependent.call))
 
     for dependent in matcher.rule.checkers:
-        m.rules.append(scan_checker(dependent.call))
+        r = scan_checker(dependent.call)
+        if r:
+            m.rules.append(r)
     return m
 
 
@@ -238,32 +246,47 @@ def scan_handler(func):
     )
 
 
-def scan_checker(func):
-    if isinstance(func, (CommandRule, ShellCommandRule)):
+def scan_checker(rule):
+    if hasattr(rule, "__name__") and rule.__name__ == "ayaka_scan_check":
+        return
+
+    if isinstance(rule, (CommandRule, ShellCommandRule)):
         return RuleInfo(
             type="命令",
-            args=list(chain(*func.cmds))
+            args=list(chain(*rule.cmds))
         )
 
-    if isinstance(func, KeywordsRule):
+    if isinstance(rule, KeywordsRule):
         return RuleInfo(
             type="关键词",
-            args=func.keywords
+            args=rule.keywords
         )
 
-    if isinstance(func, RegexRule):
+    if isinstance(rule, RegexRule):
         return RuleInfo(
             type="正则",
-            args=[func.regex]
+            args=[rule.regex]
         )
 
-    if isinstance(func, ToMeRule):
+    if isinstance(rule, ToMeRule):
         return RuleInfo(type="@机器人")
 
-    if isinstance(func, (StartswithRule, EndswithRule, FullmatchRule)):
+    if isinstance(rule, StartswithRule):
         return RuleInfo(
-            type=func.__class__.__name__,
-            args=list(func.msg)
+            type="start",
+            args=list(rule.msg)
+        )
+
+    if isinstance(rule, EndswithRule):
+        return RuleInfo(
+            type="end",
+            args=list(rule.msg)
+        )
+
+    if isinstance(rule, FullmatchRule):
+        return RuleInfo(
+            type="full match",
+            args=list(rule.msg)
         )
 
     return RuleInfo(type="[未知]")
@@ -326,7 +349,14 @@ async def show_all_plugin_names():
     if not plugins:
         return await cat.send("没有扫描到其他插件")
 
-    info = "\n".join(f"[{i}] {p.name}" for i, p in enumerate(plugins))
+    items = []
+    for i, p in enumerate(plugins):
+        info = f"[{i}] {p.name}"
+        if not config.check(p.name, cat.group.id):
+            info += " [已禁用]"
+        items.append(info)
+
+    info = "\n".join(items)
     await cat.send(info)
 
 
