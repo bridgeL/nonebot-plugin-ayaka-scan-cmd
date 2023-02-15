@@ -5,11 +5,15 @@ from loguru import logger
 from random import sample
 from asyncio import sleep
 from itertools import chain
-from nonebot.matcher import matchers, Matcher
-from nonebot.rule import CommandRule, RegexRule, EndswithRule, KeywordsRule, FullmatchRule, StartswithRule, ShellCommandRule, ToMeRule, Rule
-from nonebot.adapters.onebot.v11 import GroupMessageEvent
 from pydantic import BaseModel
-from ayaka import AyakaCat, resource_download, AyakaConfig, get_adapter
+
+from nonebot.message import run_preprocessor
+from nonebot.matcher import matchers, Matcher
+from nonebot.rule import CommandRule, RegexRule, EndswithRule, KeywordsRule, FullmatchRule, StartswithRule, ShellCommandRule, ToMeRule
+from nonebot.exception import IgnoredException
+from nonebot.adapters.onebot.v11 import GroupMessageEvent
+
+from ayaka import AyakaCat, AyakaConfig, resource_download, get_adapter
 
 cat = AyakaCat("命令探查")
 pt = re.compile(r"nonebot[_-]plugin[_-]")
@@ -27,7 +31,6 @@ def short_name(name: str):
 
 
 async def download():
-    await scan_all()
     nb_shop_data.clear()
     logger.info("nb商店数据更新中...")
     try:
@@ -83,7 +86,10 @@ class HandlerInfo(BaseModel):
 
     def is_useful(self):
         info = self.name + self.doc
-        info = info.replace("_", "").strip()
+        info = info.strip()
+        
+        if info == "_":
+            return ""
         return info
 
     def get_info(self):
@@ -178,9 +184,6 @@ class PluginInfo(BaseModel):
 
         return items
 
-    def ayaka_scan_check(self, event: GroupMessageEvent):
-        return config.check(self.name, str(event.group_id))
-
     def forbid(self, group_id: str):
         config.forbid(self.name, group_id)
 
@@ -213,14 +216,24 @@ async def scan_all():
             if meta:
                 plugin.meta = vars(meta)
 
-        if not hasattr(m, "add_scan_cmd_ctrl"):
-            m.add_scan_cmd_ctrl = 1
-            checker = list(Rule(plugin.ayaka_scan_check).checkers)[0]
-            m.rule.checkers.add(checker)
-
         plugin.matchers.append(scan_matcher(m))
         await sleep(0)
     plugins.sort(key=lambda x: x.name)
+
+
+# 在 Matcher 运行前检测其是否启用
+@run_preprocessor
+async def _(m: Matcher, event: GroupMessageEvent):
+
+    name = short_name(m.module_name)
+    if name == "ayaka":
+        return
+
+    if config.check(name, str(event.group_id)):
+        return
+
+    logger.info(f"命令探查 阻断了插件 {name} 的运行!")
+    raise IgnoredException(f"命令探查 阻断了插件 {name} 的运行!")
 
 
 def scan_matcher(matcher: Matcher):
@@ -230,8 +243,7 @@ def scan_matcher(matcher: Matcher):
 
     for dependent in matcher.rule.checkers:
         r = scan_checker(dependent.call)
-        if r:
-            m.rules.append(r)
+        m.rules.append(r)
     return m
 
 
@@ -247,9 +259,6 @@ def scan_handler(func):
 
 
 def scan_checker(rule):
-    if hasattr(rule, "__name__") and rule.__name__ == "ayaka_scan_check":
-        return
-
     if isinstance(rule, (CommandRule, ShellCommandRule)):
         return RuleInfo(
             type="命令",
